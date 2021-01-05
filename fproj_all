@@ -1,0 +1,207 @@
+%include "simple_io.inc"
+global asm_main
+
+SECTION .data:
+
+msg1: db "Wrong number of arguments",10,0
+msg2: db "The string is longer than 12",10,0
+msg3: db "input string: ",0
+bordermsg: db "border array: ",0
+plus3: db "+++",0
+space3: db "   ",0
+dot3: db "...",0
+
+SECTION .bss
+bordar: resq 12
+
+SECTION .text:
+
+maxbord:
+     enter 0,0 
+     saveregs 
+     mov r14, [rbp+24] ;; Length 
+     mov r15, [rbp+32] ;; Address
+     mov r12, qword 0 ;; max = 0
+     mov r13, qword 1 ;; length of border
+     LOOP1: 
+            cmp r13, r14
+            jae LOOP1_END 
+            mov rdx, r14
+            sub rdx, r13 ;; displacement
+            mov r10, 0
+            LOOP2: cmp r10, r13
+                   jae LOOP2_END
+                   mov r9, r15
+                   add r9, r10             
+                   mov r8b, byte [r9]
+                   add r9, rdx           
+                   cmp r8b, byte [r9]
+                   jne LOOP2_BAD_END
+                   inc r10
+                   jmp LOOP2
+            LOOP2_BAD_END:
+                   inc r13    
+                   jmp LOOP1             
+            LOOP2_END:     
+                   mov r12, r13          
+                   inc r13    
+                   jmp LOOP1             
+     LOOP1_END:
+     mov rax, r12  ;; returning max
+
+maxbord_end:
+  restoregs
+  leave
+  ret
+
+simple_display:
+  enter 0,0
+  saveregs
+  mov r13, [rbp+24] ;; length
+  mov r12, [rbp+32] ;; Array adress 
+  mov rax, msg3
+  call print_string
+  mov rax,[rsi+8] 
+  call print_string
+  call print_nl
+  mov rax,bordermsg
+  call print_string
+  mov rax, [r12]
+  call print_int
+  dec r13
+  add r12, qword 8
+
+  display_loop:
+    cmp r13, qword 0         
+    je display_loop_END
+    mov al, ','
+    call print_char
+    mov al, ' '
+    call print_char
+    mov rax, [r12]
+    call print_int
+    dec r13   
+    add r12, qword 8
+    jmp display_loop
+
+  display_loop_END:
+    call print_nl
+    restoregs
+    leave
+    ret
+
+fancy_display:
+  enter 0,0
+  saveregs
+  mov r12, [rbp+24]   ;; length
+  mov r13, [rbp+32]   ;; array
+  mov r14,0  
+  mov r15,0  
+  FLOOP1: cmp r15, r12
+          jae FLOOP2
+          cmp [r13+8*r15], r14
+          jle FLOOP3
+          mov r14, [r13+8*r15]
+  FLOOP3:
+          inc r15
+          jmp FLOOP1
+  FLOOP2:
+  FLOOP4: cmp r14, 0  
+          je FLOOP5
+          mov r15, 0
+          FLOOP6: cmp r15, r12
+                  jae FLOOP7
+                  cmp r14, 1
+                  ja FLOOP10
+                  cmp qword [r13+8*r15], 0
+                  jne FLOOP10
+                  mov rax, dot3
+                  call print_string
+                  jmp FLOOP8
+               FLOOP10:
+                  cmp [r13+8*r15], r14
+                  jae FLOOP9
+                  mov rax, space3
+                  call print_string
+                  jmp FLOOP8
+               FLOOP9:
+                  mov rax, plus3
+                  call print_string
+               FLOOP8:
+                  mov al, ' '
+                  call print_char
+                  inc r15
+                  jmp FLOOP6
+          FLOOP7:
+                  call print_nl
+          dec r14
+          jmp FLOOP4
+  FLOOP5:
+  restoregs
+  leave
+  ret
+              
+asm_main:   ;; MAIN
+  enter 0,0
+  saveregs
+  cmp rdi, qword 2
+  jne ERR1
+  mov rbx, [rsi+8]
+  mov rcx, qword 0   
+
+  LoopMain:  
+    mov al, byte [rbx]
+    cmp al, byte 0
+    je LoopMainEnd
+    add rbx, qword 1
+    add rcx, qword 1
+    jmp LoopMain
+
+  LoopMainEnd: 
+    cmp rcx, qword 12
+    ja ERR2
+    mov r15, rcx     
+    mov r13, [rsi+8] 
+    mov r12, bordar  
+ 
+  Push_Array:
+    mov al, byte [r13]
+    cmp al, byte 0     
+    je Push_Array_End
+    push r13            ;; push start of string
+    push rcx            ;; push string length
+    sub rsp, 8          
+    call maxbord  
+    add rsp, 24         
+    mov qword [r12], rax  
+    add r12, qword 8
+    inc r13
+    dec rcx
+    jmp Push_Array
+
+  Push_Array_End:
+    push bordar     
+    push r15      
+    sub rsp, 8    
+    call simple_display    
+    add rsp, 24  
+    push bordar     
+    push r15      
+    sub rsp, 8    
+    call fancy_display    
+    add rsp, 24   
+    jmp asm_main_end          
+
+ERR1:
+    mov rax, msg1
+    call print_string
+    jmp asm_main_end          
+    
+ERR2:
+    mov rax, msg2
+    call print_string
+
+asm_main_end:
+  restoregs
+  leave
+  ret
